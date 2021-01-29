@@ -14,7 +14,6 @@ import org.jsoup.nodes.Element;
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.List;
 
 
 public class Main {
@@ -22,32 +21,29 @@ public class Main {
     private static final String PASSWORD = "root";
 
 
-    private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
-        List<String> results = new ArrayList<>();
+    private static String getNextLink(Connection connection, String sql) throws SQLException {
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
              ResultSet resultSet = preparedStatement.executeQuery()) {
             while (resultSet.next()) {
-                results.add(resultSet.getString(1));
+                return resultSet.getString(1);
             }
         }
-        return results;
+        return null;
     }
 
-
+    private static String getNextLinkThenDelete(Connection connection) throws SQLException {
+        String link = getNextLink(connection, "select link from LINKS_TO_BE_PROCESSED LIMIT 1");
+        if (link != null) {
+            updateDatabase(connection, link, "DELETE FROM LINKS_TO_BE_PROCESSED where link = ?");
+        }
+        return link;
+    }
 
     @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public static void main(String[] args) throws IOException, SQLException {
         Connection connection = DriverManager.getConnection("jdbc:h2:file:D:\\JAVAproject\\crawlerAndES\\crawler\\news", USER_NAME, PASSWORD);
-        while (true) {
-            List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
-
-            if (linkPool.isEmpty()) {
-                break;
-            }
-
-            String link = linkPool.remove(linkPool.size() - 1);
-            insertLinkIntoDatabase(connection, link, "DELETE FROM LINKS_TO_BE_PROCESSED where link = ?");
-
+        String link;
+        while ((link = getNextLinkThenDelete(connection)) != null) {
             if (isLinkProcessed(connection, link)) {
                 continue;
             }
@@ -57,7 +53,7 @@ public class Main {
                 //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
                 storeIntoDatabaseIfItIsNewPage(doc);
 
-                insertLinkIntoDatabase(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values(?)");
+                updateDatabase(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values(?)");
 
             }
         }
@@ -66,7 +62,7 @@ public class Main {
     private static void parseUrlsFromPageAndStoreIntoDatabase(Connection connection, Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
-            insertLinkIntoDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values(?)");
+            updateDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values(?)");
         }
     }
 
@@ -79,7 +75,7 @@ public class Main {
         }
     }
 
-    private static void insertLinkIntoDatabase(Connection connection, String link, String sql) throws SQLException {
+    private static void updateDatabase(Connection connection, String link, String sql) throws SQLException {
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
             preparedStatement.setString(1, link);
             preparedStatement.executeUpdate();
@@ -119,7 +115,7 @@ public class Main {
 
     private static boolean isInterestingLink(String link) {
         // 这是我们感兴趣的，我们只处理新浪站内的连接
-        return (isIndexPage(link) || isNewPage(link)) && isNotLoginPage(link) && isBlogsHot(link);
+        return (isIndexPage(link) || isNewPage(link)) && isNotLoginPage(link);
     }
 
     private static boolean isIndexPage(String link) {
@@ -134,7 +130,7 @@ public class Main {
         return !link.contains("passport.sina.cn");
     }
 
-    private static boolean isBlogsHot(String link) {
-        return !link.contains("hotnews.sina.cn");
-    }
+//    private static boolean isBlogsHot(String link) {
+//        return !link.contains("hotnews.sina.cn");
+//    }
 }
