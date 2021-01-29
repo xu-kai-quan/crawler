@@ -32,28 +32,58 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException, SQLException {
-
         Connection connection = DriverManager.getConnection("jdbc:h2:file:D:\\JAVAproject\\crawlerAndES\\crawler\\news","root","root");
-        List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+        while (true) {
+            List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
 
-        Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
+//            Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
 
+            if (linkPool.isEmpty()){
+                break;
+            }
 
-        while (!linkPool.isEmpty()) {
             String link = linkPool.remove(linkPool.size() - 1);
-            if (processedLinks.contains(link)) {
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement("DELETE FROM LINKS_TO_BE_PROCESSED where link = ?")) {
+                preparedStatement.setString(1,link);
+                preparedStatement.executeUpdate();
+
+            }
+
+            boolean flag = false;
+            try (PreparedStatement preparedStatement = connection.prepareStatement("select link from LINKS_ALREADY_PROCESSED where link = ?")) {
+                preparedStatement.setString(1,link);
+                ResultSet resultSet = preparedStatement.executeQuery();
+                while(resultSet.next()){
+                    flag = true;
+                }
+
+            }
+
+
+
+            if (flag) {
                 continue;
             }
             if (isInterestingLink(link)) {
                 Document doc = httpGetAndParseHtml(link);
-
-                //stream():对于数据流的操作, map():把一个数据变换成另一个数据,forEach():对于每一个都执行一个操作
-                doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
+                for (Element aTag : doc.select("a")) {
+                    String href = aTag.attr("href");
+                    try (PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO LINKS_TO_BE_PROCESSED (link) values(?)")) {
+                        preparedStatement.setString(1,href);
+                        preparedStatement.executeUpdate();
+                    }
+                }
 
                 //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
                 storeIntoDatabaseIfItIsNewPage(doc);
 
-                processedLinks.add(link);
+                try (PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO LINKS_ALREADY_PROCESSED (link) values(?)")) {
+                    preparedStatement.setString(1,link);
+                    preparedStatement.executeUpdate();
+                }
+
+//                processedLinks.add(link);
             } else {
                 // 这是我们不感兴趣的，不处理它
             }
