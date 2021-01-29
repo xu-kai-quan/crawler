@@ -16,11 +16,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class Main {
     private static final String USER_NAME = "root";
     private static final String PASSWORD = "root";
-
 
     private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
         List<String> results = new ArrayList<>();
@@ -32,8 +30,6 @@ public class Main {
         }
         return results;
     }
-
-
 
     @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public static void main(String[] args) throws IOException, SQLException {
@@ -85,7 +81,6 @@ public class Main {
             preparedStatement.executeUpdate();
         }
     }
-
 
     private static void storeIntoDatabaseIfItIsNewPage(Document doc) {
         ArrayList<Element> articleTags = doc.select("article");
