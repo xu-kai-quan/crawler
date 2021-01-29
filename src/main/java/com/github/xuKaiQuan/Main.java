@@ -11,6 +11,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 import java.io.IOException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -18,13 +19,28 @@ import java.util.Set;
 
 
 public class Main {
-    public static void main(String[] args) throws IOException {
-        List<String> linkPool = new ArrayList();
-        Set<String> processedLinks = new HashSet<>();
-        linkPool.add("https://sina.cn");
+
+    private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
+        List<String> results = new ArrayList<>();
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            ResultSet resultSet = preparedStatement.executeQuery();
+            while (resultSet.next()) {
+                results.add(resultSet.getString(1));
+            }
+        }
+        return results;
+    }
+
+    public static void main(String[] args) throws IOException, SQLException {
+
+        Connection connection = DriverManager.getConnection("jdbc:h2:file:D:\\JAVAproject\\crawlerAndES\\crawler\\news","root","root");
+        List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+
+        Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
+
+
         while (!linkPool.isEmpty()) {
             String link = linkPool.remove(linkPool.size() - 1);
-
             if (processedLinks.contains(link)) {
                 continue;
             }
@@ -32,7 +48,7 @@ public class Main {
                 Document doc = httpGetAndParseHtml(link);
 
                 //stream():对于数据流的操作, map():把一个数据变换成另一个数据,forEach():对于每一个都执行一个操作
-                doc.select("a").stream().map(aTag->aTag.attr("href")).forEach(linkPool::add);
+                doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
 
                 //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
                 storeIntoDatabaseIfItIsNewPage(doc);
@@ -43,6 +59,7 @@ public class Main {
             }
         }
     }
+
 
     private static void storeIntoDatabaseIfItIsNewPage(Document doc) {
         ArrayList<Element> articleTags = doc.select("article");
