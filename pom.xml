@@ -42,6 +42,18 @@
             <artifactId>jsoup</artifactId>
             <version>1.13.1</version>
         </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>1.4.200</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>annotations</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
 
     </dependencies>
 
@@ -90,7 +102,6 @@
                         <artifactId>spotbugs</artifactId>
                         <version>4.0.0-beta3</version>
                     </dependency>
-
                 </dependencies>
                 <executions>
                     <execution>
@@ -112,6 +123,7 @@
                     <password>root</password>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
 </project>
