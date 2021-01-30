@@ -10,10 +10,12 @@ import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 
 public class Main {
@@ -50,8 +52,9 @@ public class Main {
             if (isInterestingLink(link)) {
                 Document doc = httpGetAndParseHtml(link);
                 parseUrlsFromPageAndStoreIntoDatabase(connection, doc);
+                System.out.println(link);
                 //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
-                storeIntoDatabaseIfItIsNewPage(doc);
+                storeIntoDatabaseIfItIsNewPage(connection,doc,link);
 
                 updateDatabase(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values(?)");
 
@@ -59,10 +62,23 @@ public class Main {
         }
     }
 
+    private static String disposeLink(String link) {
+        if (link.startsWith("//")) {
+            link = "https:" + link;
+            return link;
+        }
+        if (link.toLowerCase().startsWith("javascript") || "#".equals(link) || "".equals(link)) {
+            return null;
+        }
+        return link;
+    }
+
     private static void parseUrlsFromPageAndStoreIntoDatabase(Connection connection, Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
-            updateDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values(?)");
+            if ((href = disposeLink(href)) != null) {
+                updateDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values(?)");
+            }
         }
     }
 
@@ -83,31 +99,31 @@ public class Main {
     }
 
 
-    private static void storeIntoDatabaseIfItIsNewPage(Document doc) {
+    private static void storeIntoDatabaseIfItIsNewPage(Connection connection,Document doc,String link) throws SQLException {
         ArrayList<Element> articleTags = doc.select("article");
         if (!articleTags.isEmpty()) {
             for (Element articleTag : articleTags) {
                 String title = articleTags.get(0).child(0).text();
+                String content = articleTag.select("p").stream().map(Element::text).collect(Collectors.joining("\n"));
                 System.out.println(title);
+                try(PreparedStatement preparedStatement = connection.prepareStatement("insert into news (url ,title, content ,created_at,modified_at) values (?,?,?,now(),now())")){
+                    preparedStatement.setString(1,link);
+                    preparedStatement.setString(2,title);
+                    preparedStatement.setString(3,content);
+                    preparedStatement.executeUpdate();
+                }
+
             }
         }
     }
 
     private static Document httpGetAndParseHtml(String link) throws IOException {
         CloseableHttpClient httpclient = HttpClients.createDefault();
-
-        if (link.contains("//") && !link.contains("https:")) {
-            link = "https:" + link;
-        }
-        System.out.println(link);
-
         HttpGet httpGet = new HttpGet(link);
         httpGet.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36");
         try (CloseableHttpResponse response1 = httpclient.execute(httpGet)) {
-            System.out.println(response1.getStatusLine());
             HttpEntity entity1 = response1.getEntity();
             String html = EntityUtils.toString(entity1);
-
             return Jsoup.parse(html);
         }
 
