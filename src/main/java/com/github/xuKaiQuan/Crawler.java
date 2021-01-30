@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 
 public class Crawler {
-    private CrawlerDao dao = new JdbcCrawlerDao();
+    private CrawlerDao dao = new MyBatisCrawlerDao();
 
     public void run() throws IOException, SQLException {
 
@@ -33,9 +33,7 @@ public class Crawler {
                 System.out.println(link);
                 //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
                 storeIntoDatabaseIfItIsNewPage(doc, link);
-
-                dao.updateDatabase(link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values(?)");
-
+                dao.insertProcessedLink(link);
             }
         }
     }
@@ -61,7 +59,7 @@ public class Crawler {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
             if ((href = disposeLink(href)) != null) {
-                dao.updateDatabase(href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values(?)");
+                dao.insertLinkToBeProcessed(href);
             }
         }
     }
@@ -107,7 +105,4 @@ public class Crawler {
         return !link.contains("passport.sina.cn");
     }
 
-//    private static boolean isBlogsHot(String link) {
-//        return !link.contains("hotnews.sina.cn");
-//    }
 }
