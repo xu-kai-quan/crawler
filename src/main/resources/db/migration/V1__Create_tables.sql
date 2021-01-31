@@ -3,8 +3,8 @@ create table NEWS(
 	title text,
 	content text,
 	url varchar(1000),
-	created_at timestamp default new(),
-	modified_at timestamp default new()
+	created_at timestamp default now(),
+	modified_at timestamp default now()
 );
 
 create table LINKS_TO_BE_PROCESSED(
