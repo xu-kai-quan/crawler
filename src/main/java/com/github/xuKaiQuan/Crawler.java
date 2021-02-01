@@ -16,33 +16,35 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
+public class Crawler extends Thread {
+    private CrawlerDao dao;
 
-public class Crawler {
-    private CrawlerDao dao = new MyBatisCrawlerDao();
+    public Crawler(CrawlerDao dao) {
+        this.dao = dao;
+    }
 
-    public void run() throws IOException, SQLException {
-
-        String link;
-        while ((link = dao.getNextLinkThenDelete()) != null) {
-            if (dao.isLinkProcessed(link)) {
-                continue;
+    @Override
+    public void run() {
+        try {
+            String link;
+            while ((link = dao.getNextLinkThenDelete()) != null) {
+                if (dao.isLinkProcessed(link)) {
+                    continue;
+                }
+                if (isInterestingLink(link)) {
+                    Document doc = httpGetAndParseHtml(link);
+                    parseUrlsFromPageAndStoreIntoDatabase(doc);
+                    System.out.println(link);
+                    //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
+                    storeIntoDatabaseIfItIsNewPage(doc, link);
+                    dao.insertProcessedLink(link);
+                }
             }
-            if (isInterestingLink(link)) {
-                Document doc = httpGetAndParseHtml(link);
-                parseUrlsFromPageAndStoreIntoDatabase(doc);
-                System.out.println(link);
-                //假如这是一个新闻的详情页面，就存入数据库，否则，就什么也不做。
-                storeIntoDatabaseIfItIsNewPage(doc, link);
-                dao.insertProcessedLink(link);
-            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-
-    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
-    public static void main(String[] args) throws IOException, SQLException {
-        new Crawler().run();
-    }
 
     private static String disposeLink(String link) {
         if (link.startsWith("//")) {
