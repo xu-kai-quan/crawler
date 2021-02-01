@@ -39,6 +39,7 @@ public class Crawler extends Thread {
                     storeIntoDatabaseIfItIsNewPage(doc, link);
                     dao.insertProcessedLink(link);
                 }
+
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
